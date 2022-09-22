@@ -3,9 +3,66 @@
 
 // Select camera model
 #include "camera_pins.h"
+#include <WebSocketsClient.h>
 
 const char* ssid = "BOLSONARO CORNO";
 const char* password = "05531052";
+
+
+WebSocketsClient webSocket;
+
+void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
+  switch(type) {
+    case WStype_DISCONNECTED:
+      Serial.printf("[WSc] Disconnected!\n");
+      break;
+    case WStype_CONNECTED: {
+      Serial.printf("[WSc] Connected to url: %s\n", payload);
+    }
+      break;
+    case WStype_TEXT:
+      Serial.printf("[WSc] get text: %s\n", payload);
+      char bin[16];
+      strcpy(bin, (char *)(payload)); 
+      Serial.printf("[WSc] get text: %s\n", bin);
+      if(strcmp(bin,"96X96")==0){
+        sensor_t * s = esp_camera_sensor_get();
+        delay(1000);
+        s->set_framesize(s,FRAMESIZE_96X96);
+        delay(1000);
+      }else if(strcmp(bin,"QQVGA")==0){
+        sensor_t * s = esp_camera_sensor_get();
+        delay(1000);
+        s->set_framesize(s,FRAMESIZE_QQVGA);
+        delay(1000);
+      }
+      else if(strcmp(bin,"240X240")==0){
+        sensor_t * s = esp_camera_sensor_get();
+        delay(1000);
+        s->set_framesize(s,FRAMESIZE_240X240);
+        delay(1000);
+      }
+      else if(strcmp(bin,"UXGA")==0){
+        sensor_t * s = esp_camera_sensor_get();
+        delay(1000);
+        s->set_framesize(s,FRAMESIZE_UXGA);
+        delay(1000);
+      }
+      break;
+    case WStype_BIN:
+      Serial.printf("[WSc] get binary length: %u\n", length);
+      break;
+    case WStype_PING:
+        // pong will be send automatically
+        Serial.printf("[WSc] get ping\n");
+        break;
+    case WStype_PONG:
+        // answer to a ping we send
+        Serial.printf("[WSc] get pong\n");
+        break;
+    }
+
+}
 
 void startCameraServer();
 
@@ -31,9 +88,7 @@ void setupCamera(){
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  
-  // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
-  //                      for larger pre-allocated frame buffer.
+
     config.frame_size = FRAMESIZE_UXGA;
     config.jpeg_quality = 8;
     config.fb_count = 1;
@@ -52,6 +107,7 @@ void setupCamera(){
     s->set_saturation(s, -2); // lower the saturation
   }
   // drop down frame size for higher initial frame rate
+  s->set_framesize(s,FRAMESIZE_240X240);
 }
 
 void setup() {
@@ -75,10 +131,29 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
 
-  startCameraServer();
+  // startCameraServer();
+    
+  // server address, port and URL
+  webSocket.begin("192.168.100.9", 3000, "/jpgstream_server");
+  webSocket.onEvent(webSocketEvent);
+  webSocket.setReconnectInterval(5000);
+  webSocket.enableHeartbeat(15000, 3000, 2);
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  delay(10000);
+  int64_t fr_start = esp_timer_get_time();
+  webSocket.loop();
+  camera_fb_t * fb = NULL;
+
+      // Take Picture with Camera
+  fb = esp_camera_fb_get();  
+  if(!fb) {
+    Serial.println("Camera capture failed");
+    return;
+  }     
+  webSocket.sendBIN(fb->buf,fb->len);
+  esp_camera_fb_return(fb); 
+  int64_t fr_end = esp_timer_get_time();
+  // Serial.printf("Image sent. %ums. FPS: %u\n", (uint32_t)((fr_end - fr_start)/1000),(uint32_t)(1000000/((fr_end - fr_start))));
+
 }
