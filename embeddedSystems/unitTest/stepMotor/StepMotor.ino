@@ -2,7 +2,8 @@
 #include <Stepper.h>
 
 const int stepsPerRevolution = 1024;  // change this to fit the number of steps per revolution
-
+int angle = 0;
+// stepsPerRevolution = 180 graus
 // ULN2003 Motor Driver Pins
 #define IN1 12
 #define IN2 13
@@ -13,19 +14,15 @@ const int stepsPerRevolution = 1024;  // change this to fit the number of steps 
 Stepper myStepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
 
 void setup() {
-  myStepper.setSpeed(1);
+  myStepper.setSpeed(4);
   Serial.begin(115200);
 }
 
 void loop() {
-  // step one revolution in one direction:
-  Serial.println("clockwise");
-  myStepper.step(stepsPerRevolution/10);
-  delay(1000);
 
-  // step one revolution in the other direction:
-  Serial.println("counterclockwise");
-  myStepper.step(-stepsPerRevolution/10);
-  delay(1000);
+}
 
+void moveTo(int value){
+  int step = (moveTo-angle)*int(stepsPerRevolution/180);
+  myStepper.step(step);
 }
