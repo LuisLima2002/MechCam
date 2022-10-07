@@ -1,20 +1,23 @@
 <!DOCTYPE html>
 <html>
 <%- include('./partials/head.ejs') %>
-<body class="page_display">
-	<div class="main_content">
+<body >
+	<div class="container text-center">
 		<div class="page_title"><h1 class="tcenter">Streaming ESPCAM</h1></div>
 		<div class="tcenter">
 			<canvas id="canvas">
 				Lo sentimos, su navegador no es compatible &lt;canvas&gt;.
 			</canvas>
 		</div>
-		<select id="resolutionSelect">
-			<option value="96X96">96X96</option>
-			<option value="QQVGA">QQVGA</option>
-			<option value="240X240">240X240</option>
-			<option value="UXGA">UXGA</option>
-		</select>
+		<h3 id="angleValue"> 0</h3>
+		<input type="range" class="form-range mb-3" min="-180" max="180" value="0" id="angleSlider">
+		<select class="form-control" id="resolutionSelect">
+			<option value="FRAMESIZE_96X96">96X96</option>
+			<option value="FRAMESIZE_QQVGA">QQVGA</option>
+			<option value="FRAMESIZE_240X240">240X240</option>
+			<option value="FRAMESIZE_UXGA">UXGA</option>
+		</select>	
+		  
 	</div>
 	
 	<script>
@@ -42,7 +45,7 @@
 
 
 	}
-	
+	img.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAA1BMVEUAAACnej3aAAAASElEQVR4nO3BgQAAAADDoPlTX+AIVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwDcaiAAFXD1ujAAAAAElFTkSuQmCC";		
 	ws.onmessage = function(message) {	
 		var url = URL.createObjectURL(message.data);
 		img.src = url;		
@@ -54,10 +57,14 @@
 
 
 	document.getElementById("resolutionSelect").onchange = (e)=>{
-		console.log(e.target.value)
-		ws.send(e.target.value)
-	}
+		ws.send(JSON.stringify({"action":"resolution","value":e.target.value}))
 
+	}
+	document.getElementById("angleSlider").onchange = (e)=>{
+		document.getElementById("angleValue").innerHTML = e.target.value
+		ws.send(JSON.stringify({"action":"angle","value":e.target.value}))
+
+	}
 	</script>
 </body>
 </html>
