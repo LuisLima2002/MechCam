@@ -1,6 +1,6 @@
 #include "esp_camera.h"
 #include <WiFi.h>
-
+#include <ArduinoJson.h>
 // Select camera model
 #include "camera_pins.h"
 #include <WebSocketsClient.h>
@@ -11,7 +11,20 @@ const char* password = "05531052";
 
 WebSocketsClient webSocket;
 
+framesize_t convert(const char *str)
+{
+    if(strcmp(str,"FRAMESIZE_96X96")==0) return FRAMESIZE_96X96;
+    else if(strcmp(str,"FRAMESIZE_240X240")==0) return FRAMESIZE_240X240;
+    else if(strcmp(str,"FRAMESIZE_QQVGA")==0) return FRAMESIZE_QQVGA;
+    else if(strcmp(str,"FRAMESIZE_UXGA")==0) return FRAMESIZE_UXGA;
+}
+
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
+  const uint8_t size = JSON_OBJECT_SIZE(5);
+  StaticJsonDocument<size> json;
+  deserializeJson(json, payload);
+  const char *action = json["action"];
+
   switch(type) {
     case WStype_DISCONNECTED:
       Serial.printf("[WSc] Disconnected!\n");
@@ -22,31 +35,19 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       break;
     case WStype_TEXT:
       Serial.printf("[WSc] get text: %s\n", payload);
-      char bin[16];
-      strcpy(bin, (char *)(payload)); 
-      Serial.printf("[WSc] get text: %s\n", bin);
-      if(strcmp(bin,"96X96")==0){
+      if(strcmp(action,"resolution")==0){
+        Serial.printf("Changing resolution\n");
+        const char *value = json["value"];
+        framesize_t resolution = convert(value);
         sensor_t * s = esp_camera_sensor_get();
         delay(1000);
-        s->set_framesize(s,FRAMESIZE_96X96);
-        delay(1000);
-      }else if(strcmp(bin,"QQVGA")==0){
-        sensor_t * s = esp_camera_sensor_get();
-        delay(1000);
-        s->set_framesize(s,FRAMESIZE_QQVGA);
+        s->set_framesize(s,resolution);
         delay(1000);
       }
-      else if(strcmp(bin,"240X240")==0){
-        sensor_t * s = esp_camera_sensor_get();
-        delay(1000);
-        s->set_framesize(s,FRAMESIZE_240X240);
-        delay(1000);
-      }
-      else if(strcmp(bin,"UXGA")==0){
-        sensor_t * s = esp_camera_sensor_get();
-        delay(1000);
-        s->set_framesize(s,FRAMESIZE_UXGA);
-        delay(1000);
+      else if(strcmp(action,"angle")==0){
+        Serial.printf("Changing angle\n");
+        const int value = json["value"];
+        //moveTo(value)
       }
       break;
     case WStype_BIN:
@@ -141,7 +142,11 @@ void setup() {
 }
 
 void loop() {
-  int64_t fr_start = esp_timer_get_time();
+  sendImage();
+}
+
+void sendImage(){
+int64_t fr_start = esp_timer_get_time();
   webSocket.loop();
   camera_fb_t * fb = NULL;
 
