@@ -9,14 +9,15 @@
 				Lo sentimos, su navegador no es compatible &lt;canvas&gt;.
 			</canvas>
 		</div>
-		<h3 id="angleValue"> 0</h3>
+		<h3 id="angleValue" style=""> 0</h3>
 		<input type="range" class="form-range mb-3" min="-180" max="180" value="0" id="angleSlider">
 		<select class="form-control" id="resolutionSelect">
 			<option value="FRAMESIZE_96X96">96X96</option>
 			<option value="FRAMESIZE_QQVGA">QQVGA</option>
 			<option value="FRAMESIZE_240X240">240X240</option>
 			<option value="FRAMESIZE_UXGA">UXGA</option>
-		</select>	
+		</select>
+		<div id="content"></div>	
 		  
 	</div>
 	
@@ -45,19 +46,38 @@
 
 
 	}
+	let fps=[]
 	img.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAA1BMVEUAAACnej3aAAAASElEQVR4nO3BgQAAAADDoPlTX+AIVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwDcaiAAFXD1ujAAAAAElFTkSuQmCC";		
 	ws.onmessage = function(message) {	
 		var url = URL.createObjectURL(message.data);
 		img.src = url;		
-		let currentTime = new Date()
-		let period =(currentTime - last_time) / 1000
-		console.log(period + "s. FPS: "+  1/period)
-		last_time=currentTime
+		// let currentTime = new Date()
+		// let period =(currentTime - last_time) / 1000
+		// //console.log(period + "s. FPS: "+  1/period)
+		// fps.push(1/period)
+		// if(fps.length>=100){
+		// 	let mediaA = fps.reduce((partialSum, a) => partialSum + a, 0)/10000;
+		// 	let DP = Math.sqrt(fps.reduce((partialSum, a) => partialSum + (a-mediaA)*(a-mediaA), 0)/9999);
+		// 	let data = {media:mediaA,desvioPadrao:DP,list:fps}
+		// 	var json = JSON.stringify(data);
+		// 	var blob = new Blob([json], {type: "application/json"});
+		// 	var url  = URL.createObjectURL(blob);
+		// 	var a = document.createElement('a');
+		// 	a.download    = "backup.json";
+		// 	a.href        = url;
+		// 	a.textContent = "Download backup.json";
+
+		// 	document.getElementById('content').appendChild(a);
+		// 	fps=[]
+						
+		// }
+		// last_time=currentTime
 	};
 
 
 	document.getElementById("resolutionSelect").onchange = (e)=>{
 		ws.send(JSON.stringify({"action":"resolution","value":e.target.value}))
+		fps=[]
 
 	}
 	document.getElementById("angleSlider").onchange = (e)=>{
