@@ -9,38 +9,66 @@
 #include "esp_camera.h"
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
-//#include <EEPROM.h>
+#include <EEPROM.h>
+
+#define EEPROM_SIZE 64
       
-const char* ssid = "BOLSONARO CORNO";
-const char* password = "05531052";
+String ssid;
+String password;
 const int stepsPerRevolution = 1024;  // change this to fit the number of steps per revolution
+const char* nameWifi     = "MechCam";
+const char* passwordWifi = NULL;
+
 int angle = 0;
 // stepsPerRevolution = 180 graus
 // ULN2003 Motor Driver Pins
 #define IN1 12
 #define IN2 13
 #define IN3 15
-#define IN4 14
+#define IN4 140
+#define angleAdress 0
 const float adjustAngle = float(stepsPerRevolution)/180.0;
 // initialize the stepper library
 Stepper myStepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
 
 
 WebSocketsClient webSocket;
-/*
-void writeIntIntoEEPROM(int number)
+void writeAngleIntoEEPROM(int number)
 { 
-  EEPROM.write(0, number >> 8);
-  EEPROM.write(1, number & 0xFF);
+  EEPROM.write(angleAdress, number);
+  EEPROM.commit();
 }
 
-int readIntFromEEPROM()
+int readAngleFromEEPROM()
 {
-  byte byte1 = EEPROM.read(0);
-  byte byte2 = EEPROM.read(1);
-  angle = (byte1 << 8) + byte2;
+  return EEPROM.read(angleAdress);
 }
-*/
+
+void writeSSIDIntoEEPROM(String ssid)
+{ 
+  int adress = angleAdress + sizeof(angle);
+  EEPROM.writeString(adress, ssid);
+  EEPROM.commit();
+}
+
+String readSSIDFromEEPROM()
+{
+  int adress = angleAdress + sizeof(angle);
+  return EEPROM.readString(adress);
+}
+
+void writePasswordIntoEEPROM(String password)
+{ 
+  int adress = angleAdress + sizeof(angle) +sizeof(ssid)+10;//safe space;
+  EEPROM.writeString(adress, password);
+  EEPROM.commit();
+}
+
+String readPasswordFromEEPROM()
+{
+  int adress = angleAdress + sizeof(angle) +sizeof(ssid)+10;//safe space;
+  return EEPROM.readString(adress);
+}
 framesize_t convert(const char *str)
 {
     if(strcmp(str,"FRAMESIZE_96X96")==0) return FRAMESIZE_96X96;
@@ -142,16 +170,118 @@ void setupCamera() {
   s->set_framesize(s,FRAMESIZE_240X240);
 }
 
-void setup() {
-  myStepper.setSpeed(10);
-  Serial.begin(115200);
-  setupCamera();
+void createServer(){
+WiFiServer server(80);
+String header;
+unsigned long currentTime = millis();
+unsigned long previousTime = 0; 
+const long timeoutTime = 2000;
+WiFi.disconnect();
+WiFi.mode(WIFI_AP);
+WiFi.softAP(nameWifi,passwordWifi);
+Serial.println("Starting Server");
+Serial.print("[+] AP Created with IP Gateway ");
+Serial.println(WiFi.softAPIP());
+server.begin();
+while(true){
+WiFiClient client = server.available();   // Listen for incoming clients
+if (client) {                             // If a new client connects,
+  currentTime = millis();
+  previousTime = currentTime;
+  String currentLine = "";                // make a String to hold incoming data from the client
+  while (client.connected() && currentTime - previousTime <= timeoutTime) { // loop while the client's connected
+    currentTime = millis();
+    if (client.available()) {             // if there's bytes to read from the client,
+      char c = client.read();             // read a byte, then
+      header += c;
+      if(header.indexOf("GET /?credentials=")>=0 && c  == '\n') {
+          Serial.print("Header recebido: ");
+          Serial.println(header);
+          int pos1 = header.indexOf('=');
+          int pos2 = header.indexOf(']');
+          int pos3 = header.indexOf('&');
+          ssid = header.substring(pos1+1, pos2);
+          ssid.replace("}"," ");
+          password = header.substring(pos2+1, pos3);
+          Serial.println(ssid);
+          Serial.println(password);
+          writeSSIDIntoEEPROM(ssid);
+          writePasswordIntoEEPROM(password);
+          client.println("HTTP/1.1 200 OK");
+          client.println("Content-type:application/json");
+          client.println();
+          client.printf("{\"status\":\"ok mm\"}");
+          client.stop();
+          WiFi.mode(WIFI_STA);
+          server.close();
+          return;
+        } else if (c == '\n') {                    // if the byte is a newline character
+        // if the current line is blank, you got two newline characters in a row.
+        // that's the end of the client HTTP request, so send a response:
+        if(currentLine.length() == 0){
+          // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+          // and a content-type so the client knows what's coming, then a blank line:
+          client.println("HTTP/1.1 200 OK");
+          client.println("Content-type:text/html");
+          client.println("Connection: close");
+          client.println();
+          // Display the HTML web page
+          client.println("<!DOCTYPE html><html>");
+          client.println("<head>");
+          client.println("<link rel=\"icon\" href=\"data:,\">");
+          // CSS to style the on/off buttons 
+          // Feel free to change the background-color and font-size attributes to fit your preferences
+          client.println("<style>body { text-align: center; font-family: \"Trebuchet MS\", Arial; margin-left:auto; margin-right:auto;}");
+          client.println(".slider { width: 300px; }</style>");
+          // Web Page
+          client.println("</head><body><h1>Barra e bola</h1>");
+          client.println("<p>Position: <span id=\"servoPos\"></span></p>");          
+          client.println("<h1 id=\"distanceT\"/></h1>");
+          client.println("</body></html>");     
+          // The HTTP response ends with another blank line
+          client.println();
+          // Break out of the while loop
+          break;
+        }else { // if you got a newline, then clear currentLine
+          currentLine = "";
+        }  
+    }else if (c != '\r') {  // if you got anything else but a carriage return character,
+        currentLine += c;      // add it to the end of the currentLine
+      }
+  }
+  }
+  // Clear the header variable
+  header = "";
+  // Close the connection
+  client.stop();
+  }
+}
+}
 
-  WiFi.begin(ssid, password);
-  readIntFromEEPROM();
+void setup() {
+  EEPROM.begin(EEPROM_SIZE);
+  Serial.begin(115200);
+  ssid = readSSIDFromEEPROM();
+  password = readPasswordFromEEPROM();
+  angle = readAngleFromEEPROM();
+  myStepper.setSpeed(10);
+  Serial.println(ssid);
+  Serial.println(password);
+  const char * s = ssid.c_str();
+  const char * p = password.c_str();
+  WiFi.begin(s, p);
+  int j =0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
+    Serial.println(j);
+    j++;
+    if(j>50){
+      createServer();
+      const char * s = ssid.c_str();
+      const char * p = password.c_str();
+      WiFi.begin(s, p);
+      j=0;
+    }
   }
   Serial.println("");
   Serial.println("WiFi connected");
@@ -165,7 +295,7 @@ void setup() {
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000);
   webSocket.enableHeartbeat(15000, 3000, 2);
-
+  setupCamera();
 }
 
 
