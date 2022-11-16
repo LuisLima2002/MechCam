@@ -3,6 +3,7 @@
 
 const int stepsPerRevolution = 1024;  // change this to fit the number of steps per revolution
 int angle = 0;
+const float adjustAngle = float(stepsPerRevolution)/180.0;
 // stepsPerRevolution = 180 graus
 // ULN2003 Motor Driver Pins
 #define IN1 12
@@ -19,10 +20,21 @@ void setup() {
 }
 
 void loop() {
-
+    moveTo(175);
+    delay(5000);
+    moveTo(-175);
 }
 
 void moveTo(int value){
-  int step = (moveTo-angle)*int(stepsPerRevolution/180);
+  value = constrain(value,-175,175);
+  Serial.printf("move to %d and now is %d with adjustAngle equal to %f\n",value,angle,adjustAngle);
+  // int step = ((value * adjustAngle)-angle)*(stepsPerRevolution/180);
+  int step = (value-angle)*(adjustAngle);
   myStepper.step(step);
+  angle=value;
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+
 }
