@@ -4,10 +4,10 @@ const server = require('http').Server(app);
 const url = require('url');
 const fs = require("fs");
 const WebSocket = require('ws');
-// const videoshow = require('videoshow')
-// const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
-// const ffmpeg = require('fluent-ffmpeg');
-//ffmpeg.setFfmpegPath(ffmpegPath);
+const videoshow = require('videoshow')
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+const ffmpeg = require('fluent-ffmpeg');
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const port = process.env.PORT || 3000;
 
@@ -17,23 +17,64 @@ express_config.init(app);
 
 const wss1 = new WebSocket.Server({ noServer: true });
 const wss2 = new WebSocket.Server({ noServer: true });
+const framesToStore = 14.400
 var frame = 0;
+var canSave= true
 
-//esp32cam websocket
+
+function createVideo(){
+  console.log("making video")
+  let secondsToShowEachImage = 0.25
+  let images = [ ]
+  for (let i = 0; i <= framesToStore; i++) {
+    images.push({path:"./images/frame"+i+".jpg",loop:secondsToShowEachImage})
+  }
+    let finalVideoPath = 'video.mp4'
+    let videoOptions = {
+      transition: false,
+      videoBitrate: 512 ,
+      videoCodec: 'libx264', 
+      size: '90x90',
+      outputOptions: ['-pix_fmt yuv420p'],
+      format: 'mp4' 
+    }
+    videoshow(images, videoOptions)
+    .save("video.mp4")
+    .on('start', function (command) { 
+      console.log('encoding ' + finalVideoPath + ' with command ' + command) 
+    })
+    .on('error', function (err, stdout, stderr) {
+      console.log('error') 
+      return Promise.reject(new Error(err)) 
+    })
+    .on('end', function (output) {
+      // do stuff here when done
+      frame=0
+    })
+}
+
+
+
 wss1.on('connection', function connection(ws) {
+  console.log("camera connected")
   ws.on('message', function incoming(message) {
+    if(canSave && frame<=framesToStore){
+      let filename = "./images/frame"+frame+".jpg";
+        fs.writeFile(filename, message, "binary", (err) => {
+          if (!err){ 
+            console.log(`${filename} created successfully!`);
+            frame++;}
+            lastFrame= new Date()
+            if(frame===framesToStore+1){
+              createVideo();
+            }
+            canSave=false
+            setTimeout(()=>{canSave=true},250)
+        })
+    }
     wss2.clients.forEach(function each(client) {
       if (client.readyState === WebSocket.OPEN) {
         client.send(message);
-        // let filename = "./images/frame"+frame+".jpg";
-        // fs.writeFile(filename, message, "binary", (err) => {
-        //     if (!err){ 
-        //       console.log(`${filename} created successfully!`);
-        //     frame++;}
-        //   })
-        // if(frame>=1440){
-        //   createVideo();
-        // }
       }
     });
   });
@@ -41,8 +82,9 @@ wss1.on('connection', function connection(ws) {
 
 //webbrowser websocket
 wss2.on('connection', function connection(ws) {
+  console.log("client connected")
   ws.on('message', function incoming(message) {
-  	// nothing here should be received
+  // nothing here should be received
     wss1.clients.forEach(function each(client){
       if (client.readyState === WebSocket.OPEN) {
         console.log("Sending to espcam "+ message.toString())
@@ -68,8 +110,6 @@ server.on('upgrade', function upgrade(request, socket, head) {
   }
 });
 
-
-
 app.get('/', (req, res) => {
   	res.render('index', {});
 });
@@ -78,39 +118,3 @@ app.get('/', (req, res) => {
 server.listen(port, () => {
 	  console.log(`App listening at http://localhost:${port}`)
 })
-
-// function createVideo(){
-
-//     let secondsToShowEachImage = 0.1
-//       let images = [ ]
-//       for (let i = 0; i <= 1440; i++) {
-//         images.push({path:"./images/frame"+i+".jpg",loop:secondsToShowEachImage})
-//      }
-//     let finalVideoPath = 'video.mp4'
-//     // setup videoshow options
-//     let videoOptions = {
-//       fps: 24,
-//       transition: false,
-//       videoBitrate: 1024 ,
-//       videoCodec: 'libx264', 
-//       size: '240x240',
-//       outputOptions: ['-pix_fmt yuv420p'],
-//       format: 'mp4' 
-//     }
-
-//     videoshow(images, videoOptions)
-//     .save("video.mp4")
-//     .on('start', function (command) { 
-//       console.log('encoding ' + finalVideoPath + ' with command ' + command) 
-//     })
-//     .on('error', function (err, stdout, stderr) {
-//       console.log('error') 
-//       return Promise.reject(new Error(err)) 
-//     })
-//     .on('end', function (output) {
-//       // do stuff here when done
-//     })
-// }
-// createVideo()
-
-
