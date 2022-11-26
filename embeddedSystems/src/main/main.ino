@@ -1,6 +1,3 @@
-/*TODO:
-* Setar tempo fixo de envio de imagem (20FPS)
-*/
 #include <Stepper.h>
 #include "camera_pins.h"
 #include <WiFi.h>
@@ -8,7 +5,9 @@
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
 #include <EEPROM.h>
-
+#include <iostream>
+#include <string>
+using namespace std;
 #define EEPROM_SIZE 64
       
 String ssid;
@@ -16,6 +15,7 @@ String password;
 const int stepsPerRevolution = 1024; 
 const char* nameWifi     = "MechCam";
 const char* passwordWifi = NULL;
+int64_t timeToRead;
 
 int angle = 0;
 // stepsPerRevolution = 180 graus
@@ -23,11 +23,12 @@ int angle = 0;
 #define IN1 12
 #define IN2 13
 #define IN3 15
-#define IN4 140
+#define IN4 14
 #define angleAdress 0
+#define GPIO_SENSOR_GAS 2
 const float adjustAngle = float(stepsPerRevolution)/180.0;
 Stepper myStepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
-
+float R0;
 
 WebSocketsClient webSocket;
 void writeAngleIntoEEPROM(int number)
@@ -80,6 +81,7 @@ void moveTo(int value){
   int step = (value-angle)*(adjustAngle);
   myStepper.step(step);
   angle=value;
+  writeAngleIntoEEPROM(angle);
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, LOW);
   digitalWrite(IN3, LOW);
@@ -251,9 +253,33 @@ if (client) {                             // If a new client connects,
 }
 }
 
+void calculateR0(){
+    delay(20000);
+    float sensorValue = 0;
+    for (int i=0; i<50;i++){
+        sensorValue += analogRead(GPIO_SENSOR_GAS);
+        delay(100);
+     }
+
+    sensorValue = sensorValue/100;
+
+    float sensorVolt = sensorValue/4096*5.0;
+    Serial.print("SensorVolt: ");
+    Serial.println(sensorVolt);
+    float RS_air = (5.0 - sensorVolt)/sensorVolt;
+    R0 = RS_air/9.83;
+    Serial.print("RO: ");
+    Serial.println(R0);
+}
+
 void setup() {
-  EEPROM.begin(EEPROM_SIZE);
   Serial.begin(115200);
+  pinMode(GPIO_SENSOR_GAS, INPUT);
+  calculateR0();
+
+  EEPROM.begin(EEPROM_SIZE);
+  writeSSIDIntoEEPROM("CLARO_2G53CF29");
+  writePasswordIntoEEPROM("B753CF29");
   ssid = readSSIDFromEEPROM();
   password = readPasswordFromEEPROM();
   angle = readAngleFromEEPROM();
@@ -279,16 +305,17 @@ void setup() {
   Serial.println("");
   Serial.println("WiFi connected");
 
-
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
 
-  webSocket.begin("192.168.100.9", 3000, "/jpgstream_server");
+
+  webSocket.begin("192.168.0.11", 3000, "/jpgstream_server");
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000);
   webSocket.enableHeartbeat(15000, 3000, 2);
   setupCamera();
+  timeToRead = esp_timer_get_time()+30000000;
 }
 
 
@@ -297,7 +324,7 @@ int64_t fr_start = esp_timer_get_time();
   webSocket.loop();
   camera_fb_t * fb = NULL;
 
-      // Take Picture with Camera
+  // Take Picture with Camera
   fb = esp_camera_fb_get();  
   if(!fb) {
     Serial.println("Camera capture failed");
@@ -307,9 +334,32 @@ int64_t fr_start = esp_timer_get_time();
   esp_camera_fb_return(fb); 
   int64_t fr_end = esp_timer_get_time();
   // Serial.printf("Image sent. %ums. FPS: %u\n", (uint32_t)((fr_end - fr_start)/1000),(uint32_t)(1000000/((fr_end - fr_start))));
+}
 
+float getRatio(){
+    float sensor_volt = 0;
+    float sensorValue = analogRead(GPIO_SENSOR_GAS);
+    float RS_gas = 0; //Get value of RS in a GAS
+    //sensorValue = sensorValue * 5.0 / 3.33
+
+    sensor_volt= sensorValue/4096*5.0;
+    RS_gas = (5.0-sensor_volt)/sensor_volt;
+ 
+    float ratio = RS_gas/R0; 
+    return ratio;
 }
 
 void loop() {
+  if(timeToRead>esp_timer_get_time()){
+    WiFi.disconnect(true);
+    Serial.println(getRatio());
+    const char * s = ssid.c_str();
+    const char * p = password.c_str();
+    WiFi.begin(s, p);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+    }
+    timeToRead = esp_timer_get_time() + 30000000;
+  }
   sendImage();
 }
