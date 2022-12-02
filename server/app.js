@@ -26,7 +26,7 @@ function createVideo(){
   console.log("making video")
   let secondsToShowEachImage = 0.25
   let images = [ ]
-  for (let i = 0; i <= framesToStore; i++) {
+  for (let i = 0; i <= 10; i++) {
     if(fs.existsSync("./images/frame"+i+".jpg")){
       images.push({path:"./images/frame"+i+".jpg",loop:secondsToShowEachImage})
     }
@@ -41,7 +41,7 @@ function createVideo(){
       format: 'mp4' 
     }
     videoshow(images, videoOptions)
-    .save(finalVideoPath)
+    .save("video.mp4")
     .on('start', function (command) { 
       console.log('encoding ' + finalVideoPath + ' with command ' + command) 
     })
@@ -64,9 +64,9 @@ wss1.on('connection', function connection(ws) {
       let filename = "./images/frame"+frame+".jpg";
         fs.writeFile(filename, message, "binary", (err) => {
           if (!err){ 
-            console.log(`${filename} created successfully!`);
+            //console.log(`${filename} created successfully!`);
             frame++;}else{
-              console.log(err)
+              //console.log(err)
             }
             lastFrame= new Date()
             if(frame===framesToStore+1){
@@ -78,7 +78,11 @@ wss1.on('connection', function connection(ws) {
     }
     wss2.clients.forEach(function each(client) {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
+        if(message.length>10){
+          client.send(message);
+        }else{
+          client.send(message.readInt32LE())
+        }
       }
     });
   });

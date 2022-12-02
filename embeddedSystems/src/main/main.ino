@@ -15,7 +15,7 @@ String password;
 const int stepsPerRevolution = 1024; 
 const char* nameWifi     = "MechCam";
 const char* passwordWifi = NULL;
-int64_t timeToRead;
+int64_t timeToRead=0;
 
 int angle = 0;
 // stepsPerRevolution = 180 graus
@@ -29,7 +29,7 @@ int angle = 0;
 const float adjustAngle = float(stepsPerRevolution)/180.0;
 Stepper myStepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
 float R0;
-
+int n=10;
 WebSocketsClient webSocket;
 void writeAngleIntoEEPROM(int number)
 { 
@@ -210,37 +210,7 @@ if (client) {                             // If a new client connects,
           WiFi.mode(WIFI_STA);
           server.close();
           return;
-        } else if (c == '\n') {                    // if the byte is a newline character
-        // if the current line is blank, you got two newline characters in a row.
-        // that's the end of the client HTTP request, so send a response:
-        if(currentLine.length() == 0){
-          // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-          // and a content-type so the client knows what's coming, then a blank line:
-          client.println("HTTP/1.1 200 OK");
-          client.println("Content-type:text/html");
-          client.println("Connection: close");
-          client.println();
-          // Display the HTML web page
-          client.println("<!DOCTYPE html><html>");
-          client.println("<head>");
-          client.println("<link rel=\"icon\" href=\"data:,\">");
-          // CSS to style the on/off buttons 
-          // Feel free to change the background-color and font-size attributes to fit your preferences
-          client.println("<style>body { text-align: center; font-family: \"Trebuchet MS\", Arial; margin-left:auto; margin-right:auto;}");
-          client.println(".slider { width: 300px; }</style>");
-          // Web Page
-          client.println("</head><body><h1>Barra e bola</h1>");
-          client.println("<p>Position: <span id=\"servoPos\"></span></p>");          
-          client.println("<h1 id=\"distanceT\"/></h1>");
-          client.println("</body></html>");     
-          // The HTTP response ends with another blank line
-          client.println();
-          // Break out of the while loop
-          break;
-        }else { // if you got a newline, then clear currentLine
-          currentLine = "";
-        }  
-    }else if (c != '\r') {  // if you got anything else but a carriage return character,
+        }else if (c != '\r') {  // if you got anything else but a carriage return character,
         currentLine += c;      // add it to the end of the currentLine
       }
   }
@@ -278,8 +248,6 @@ void setup() {
   calculateR0();
 
   EEPROM.begin(EEPROM_SIZE);
-  writeSSIDIntoEEPROM("CLARO_2G53CF29");
-  writePasswordIntoEEPROM("B753CF29");
   ssid = readSSIDFromEEPROM();
   password = readPasswordFromEEPROM();
   angle = readAngleFromEEPROM();
@@ -310,12 +278,12 @@ void setup() {
   Serial.println("' to connect");
 
 
-  webSocket.begin("192.168.0.11", 3000, "/jpgstream_server");
+  webSocket.begin("192.168.100.9", 3000, "/jpgstream_server");
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000);
   webSocket.enableHeartbeat(15000, 3000, 2);
   setupCamera();
-  timeToRead = esp_timer_get_time()+30000000;
+
 }
 
 
@@ -336,23 +304,25 @@ int64_t fr_start = esp_timer_get_time();
   // Serial.printf("Image sent. %ums. FPS: %u\n", (uint32_t)((fr_end - fr_start)/1000),(uint32_t)(1000000/((fr_end - fr_start))));
 }
 
-float getRatio(){
+int getRatio(){
     float sensor_volt = 0;
     float sensorValue = analogRead(GPIO_SENSOR_GAS);
     float RS_gas = 0; //Get value of RS in a GAS
-    //sensorValue = sensorValue * 5.0 / 3.33
 
     sensor_volt= sensorValue/4096*5.0;
     RS_gas = (5.0-sensor_volt)/sensor_volt;
  
-    float ratio = RS_gas/R0; 
+    int ratio = (RS_gas*100)/R0; 
     return ratio;
 }
 
 void loop() {
-  if(timeToRead>esp_timer_get_time()){
+  if(timeToRead<esp_timer_get_time()){
     WiFi.disconnect(true);
-    Serial.println(getRatio());
+    n = getRatio();
+    Serial.println(n);
+    uint8_t * buf = (uint8_t *) &n;
+    size_t buf_len = sizeof(n);
     const char * s = ssid.c_str();
     const char * p = password.c_str();
     WiFi.begin(s, p);
@@ -362,4 +332,8 @@ void loop() {
     timeToRead = esp_timer_get_time() + 30000000;
   }
   sendImage();
+  webSocket.loop();
+  uint8_t * buf = (uint8_t *) &n;
+  size_t buf_len = sizeof(n);
+  webSocket.sendBIN(buf,buf_len);
 }
