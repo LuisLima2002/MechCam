@@ -7,4 +7,4 @@ otimizando a tomada de decisões e reduzindo o número de acidentes domésticos 
 por vazamentos de gás.
 A arquitetura desse projeta está mostrada na figura abaixo..
 
-Para executar o projeto, é necessário fazer o upload do sistema embarcado em um microcontrolador ESP-CAM, e então o configurar para acessar a rede. Após isso é preciso executar o servidor NODE com o comando 'node index.js' e então acessar via navegador o localhost na porta estabelecida.
+Para executar o projeto, é necessário fazer o upload do sistema embarcado em um microcontrolador ESP-CAM, e então o configurar para acessar a rede. Após isso é preciso executar o servidor NODE com o comando 'node app.js' e então acessar via navegador o localhost na porta estabelecida.
