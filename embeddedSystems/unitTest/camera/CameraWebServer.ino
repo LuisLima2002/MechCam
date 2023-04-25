@@ -5,8 +5,8 @@
 #include "camera_pins.h"
 #include <WebSocketsClient.h>
 
-const char* ssid = "BOLSONARO CORNO";
-const char* password = "05531052";
+const char* ssid = "ssid";
+const char* password = "password";
 
 
 WebSocketsClient webSocket;
