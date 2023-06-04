@@ -278,7 +278,7 @@ void setup() {
   Serial.println("' to connect");
 
 
-  webSocket.begin("192.168.100.9", 3000, "/jpgstream_server");
+  webSocket.begin("192.168.4.2", 3000, "/jpgstream_server");
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000);
   webSocket.enableHeartbeat(15000, 3000, 2);

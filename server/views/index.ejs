@@ -57,7 +57,7 @@
 	img.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAA1BMVEUAAACnej3aAAAASElEQVR4nO3BgQAAAADDoPlTX+AIVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwDcaiAAFXD1ujAAAAAElFTkSuQmCC";		
 	ws.onmessage = function(message) {
 		if((typeof(message.data)==="string")){
-			let width = 100-(message.data/10)
+			let width = 100-(message.data/5)
 			document.getElementById("sensor").style.width=width+"%"
 			if(width<40){
 				document.getElementById("sensor").className = "bg-success"
